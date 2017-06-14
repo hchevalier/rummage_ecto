@@ -228,6 +228,31 @@ defmodule Rummage.EctoTest do
     }
   end
 
+  test "rummage call with search and multiple assoc params returns the correct results" do
+    create_categories_and_products
+
+    rummage = %{
+      "search" => %{"category_name" => %{"assoc" => ["category"], "search_type" => "like", "search_term" => "1"},
+                    "price" => %{"assoc" => nil, "search_type" => "lteq", "search_term" => 10}}
+    }
+
+    {queryable, rummage} = Rummage.Ecto.rummage(Product, rummage)
+
+    products = Repo.all(queryable)
+
+    # Test length
+    assert length(products) == 1
+
+    # Test prices of products
+    assert Enum.all?(Repo.preload(products, :category), & &1.category.category_name == "Category 1")
+
+    # Test rummage params
+    assert rummage == %{
+      "search" => %{"category_name" => %{"assoc" => ["category"], "search_type" => "like", "search_term" => "1"},
+                    "price" => %{"assoc" => nil, "search_type" => "lteq", "search_term" => 10}}
+    }
+  end
+
   test "rummage call with search, sort and paginate" do
     create_categories_and_products
 

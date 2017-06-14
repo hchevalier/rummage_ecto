@@ -298,7 +298,7 @@ defmodule Rummage.Ecto.Hooks.Search do
 
         association_names
         |> Enum.reduce(queryable, &join_by_association(&1, &2))
-        |> BuildSearchQuery.run(field, search_type, search_term)
+        |> BuildSearchQuery.run(field, search_type, search_term, association_names == [])
     end
   end
 

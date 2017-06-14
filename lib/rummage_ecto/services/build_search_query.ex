@@ -38,7 +38,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "like", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "like", "field_!", false)
       #Ecto.Query<from p in "parents", where: like(p.field_1, ^"%field_!%")>
 
   When `field`, `search_type` and `queryable` are passed with `search_type` of `ilike`:
@@ -47,7 +47,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
         iex> import Ecto.Query
         iex> queryable = from u in "parents"
         #Ecto.Query<from p in "parents">
-        iex> BuildSearchQuery.run(queryable, :field_1, "ilike", "field_!")
+        iex> BuildSearchQuery.run(queryable, :field_1, "ilike", "field_!", false)
         #Ecto.Query<from p in "parents", where: ilike(p.field_1, ^"%field_!%")>
 
   When `field`, `search_type` and `queryable` are passed with `search_type` of `eq`:
@@ -56,7 +56,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "eq", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "eq", "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 == ^"field_!">
 
   When `field`, `search_type` and `queryable` are passed with `search_type` of `gt`:
@@ -65,7 +65,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "gt", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "gt", "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 > ^"field_!">
 
   When `field`, `search_type` and `queryable` are passed with `search_type` of `lt`:
@@ -74,7 +74,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "lt", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "lt", "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 < ^"field_!">
 
  When `field`, `search_type` and `queryable` are passed with `search_type` of `gteq`:
@@ -83,7 +83,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "gteq", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "gteq", "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 >= ^"field_!">
 
  When `field`, `search_type` and `queryable` are passed with `search_type` of `lteq`:
@@ -92,7 +92,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "lteq", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "lteq", "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 <= ^"field_!">
 
 When `field`, `search_type` and `queryable` are passed with an invalid `search_type`:
@@ -101,13 +101,13 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.run(queryable, :field_1, "pizza", "field_!")
+      iex> BuildSearchQuery.run(queryable, :field_1, "pizza", "field_!", false)
       #Ecto.Query<from p in "parents">
   """
-  @spec run(Ecto.Query.t, atom, String.t, term) :: {Ecto.Query.t}
-  def run(queryable, field, search_type, search_term) do
+  @spec run(Ecto.Query.t, atom, String.t, term, boolean) :: {Ecto.Query.t}
+  def run(queryable, field, search_type, search_term, bind_to_base) do
     case Enum.member?(@search_types, search_type) do
-      true -> apply(__MODULE__, String.to_atom("handle_" <> search_type), [queryable, field, search_term])
+      true -> apply(__MODULE__, String.to_atom("handle_" <> search_type), [queryable, field, search_term, bind_to_base])
       _ -> queryable
     end
   end
@@ -122,13 +122,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_like(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_like(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: like(p.field_1, ^"%field_!%")>
   """
-  @spec handle_like(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_like(queryable, field, search_term) do
+  @spec handle_like(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_like(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      like(field(b, ^field), ^"%#{String.replace(search_term, "%", "\\%")}%"))
+  end
+  def handle_like(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       like(field(b, ^field), ^"%#{String.replace(search_term, "%", "\\%")}%"))
   end
 
@@ -143,13 +148,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_ilike(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_ilike(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: ilike(p.field_1, ^"%field_!%")>
   """
-  @spec handle_ilike(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_ilike(queryable, field, search_term) do
+  @spec handle_ilike(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_ilike(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      ilike(field(b, ^field), ^"%#{String.replace(search_term, "%", "\\%")}%"))
+  end
+  def handle_ilike(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       ilike(field(b, ^field), ^"%#{String.replace(search_term, "%", "\\%")}%"))
   end
 
@@ -164,13 +174,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_eq(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_eq(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 == ^"field_!">
   """
-  @spec handle_eq(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_eq(queryable, field, search_term) do
+  @spec handle_eq(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_eq(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      field(b, ^field) == ^search_term)
+  end
+  def handle_eq(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       field(b, ^field) == ^search_term)
   end
 
@@ -185,13 +200,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_gt(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_gt(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 > ^"field_!">
   """
-  @spec handle_gt(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_gt(queryable, field, search_term) do
+  @spec handle_gt(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_gt(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      field(b, ^field) > ^search_term)
+  end
+  def handle_gt(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       field(b, ^field) > ^search_term)
   end
 
@@ -206,13 +226,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_lt(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_lt(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 < ^"field_!">
   """
-  @spec handle_lt(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_lt(queryable, field, search_term) do
+  @spec handle_lt(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_lt(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      field(b, ^field) < ^search_term)
+  end
+  def handle_lt(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       field(b, ^field) < ^search_term)
   end
 
@@ -227,13 +252,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_gteq(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_gteq(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 >= ^"field_!">
   """
-  @spec handle_gteq(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_gteq(queryable, field, search_term) do
+  @spec handle_gteq(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_gteq(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      field(b, ^field) >= ^search_term)
+  end
+  def handle_gteq(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       field(b, ^field) >= ^search_term)
   end
 
@@ -248,13 +278,18 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
       iex> import Ecto.Query
       iex> queryable = from u in "parents"
       #Ecto.Query<from p in "parents">
-      iex> BuildSearchQuery.handle_lteq(queryable, :field_1, "field_!")
+      iex> BuildSearchQuery.handle_lteq(queryable, :field_1, "field_!", false)
       #Ecto.Query<from p in "parents", where: p.field_1 <= ^"field_!">
   """
-  @spec handle_lteq(Ecto.Query.t, atom, term) :: {Ecto.Query.t}
-  def handle_lteq(queryable, field, search_term) do
+  @spec handle_lteq(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_lteq(queryable, field, search_term, false) do
     queryable
     |> where([..., b],
+      field(b, ^field) <= ^search_term)
+  end
+  def handle_lteq(queryable, field, search_term, true) do
+    queryable
+    |> where([b],
       field(b, ^field) <= ^search_term)
   end
 end
