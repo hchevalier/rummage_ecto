@@ -25,7 +25,7 @@ defmodule Rummage.Ecto.Services.BuildSearchQuery do
 
   import Ecto.Query
 
-  @search_types ~w(like ilike eq gt lt gteq lteq)
+  @search_types ~w(like ilike eq gt lt gteq lteq daterange)
 
   @doc """
   Builds a searched `queryable` on top of the given `queryable` using `field`, `search_type`
@@ -291,5 +291,36 @@ When `field`, `search_type` and `queryable` are passed with an invalid `search_t
     queryable
     |> where([b],
       field(b, ^field) <= ^search_term)
+  end
+
+  @doc """
+  Builds a searched `queryable` on top of the given `queryable` using `field` and `search_type`
+  when the `search_term` is `daterange`.
+
+  ## Examples
+
+      iex> alias Rummage.Ecto.Services.BuildSearchQuery
+      iex> import Ecto.Query
+      iex> queryable = from u in "parents"
+      #Ecto.Query<from p in "parents">
+      iex> BuildSearchQuery.handle_daterange(queryable, :field_1, "val1_!|val2_!", false)
+      #Ecto.Query<from p in "parents", where: p.field_1 >= ^"val1_!" and p.field_1 <= ^"val2_!">
+  """
+  @spec handle_daterange(Ecto.Query.t, atom, term, boolean) :: {Ecto.Query.t}
+  def handle_daterange(queryable, field, search_term, false) do
+    [from, to] = String.split(search_term, "|")
+    |> Enum.map(&NaiveDateTime.from_iso8601!(&1))
+
+    queryable
+    |> where([..., b],
+      field(b, ^field) >= ^from and field(b, ^field) <= ^to)
+  end
+  def handle_daterange(queryable, field, search_term, true) do
+    [from, to] = String.split(search_term, "|")
+    |> Enum.map(&NaiveDateTime.from_iso8601!(&1))
+
+    queryable
+    |> where([b],
+      field(b, ^field) >= ^from and field(b, ^field) <= ^to)
   end
 end
